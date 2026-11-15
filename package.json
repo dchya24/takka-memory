@@ -1,0 +1,21 @@
+{
+	"name": "@dchya24/pi-zcode-memory",
+	"version": "0.1.0",
+	"description": "pi extension: share zcode's file-based persistent memory between the pi and zcode coding agents",
+	"type": "module",
+	"keywords": ["pi-package", "pi-coding-agent", "zcode", "memory", "persistent-memory"],
+	"license": "MIT",
+	"author": "dchya24",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dchya24/pi-zcode-memory.git"
+	},
+	"bugs": {
+		"url": "https://github.com/dchya24/pi-zcode-memory/issues"
+	},
+	"files": ["extensions", "README.md", "CHANGELOG.md", "LICENSE"],
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*"
+	}
+}
