@@ -25,7 +25,7 @@ it("copies project memory dirs 1:1", () => {
 	fixture("a.md", "---\nname: a\ndescription: d\nmetadata:\n  type: user\n---\n\nbody\n");
 	const s = importZcode(zroot, troot, false);
 	expect(s.projects).toEqual([{ key: "proj-abc", copied: 2, skipped: 0, updated: 0 }]);
-	expect(fs.readFileSync(path.join(troot, "projects", "proj-abc", "memory", "a.md"), "utf-8")).toContain("body");
+	expect(fs.readFileSync(path.join(troot, "projects", "proj-abc", "a.md"), "utf-8")).toContain("body");
 });
 
 it("is idempotent: rerun skips identical files, overwrites changed ones", () => {
@@ -36,7 +36,7 @@ it("is idempotent: rerun skips identical files, overwrites changed ones", () => 
 	fixture("a.md", "v2");
 	const third = importZcode(zroot, troot, false);
 	expect(third.projects[0]).toMatchObject({ skipped: 0, updated: 1 });
-	expect(fs.readFileSync(path.join(troot, "projects", "proj-abc", "memory", "a.md"), "utf-8")).toBe("v2");
+	expect(fs.readFileSync(path.join(troot, "projects", "proj-abc", "a.md"), "utf-8")).toBe("v2");
 });
 
 it("dryRun reports without writing", () => {
