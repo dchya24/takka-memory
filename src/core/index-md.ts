@@ -28,7 +28,7 @@ export function upsertIndexLine(dir: string, file: string, title: string, hook: 
 	const filePath = indexFile(dir);
 	let md = readFileSafe(filePath);
 	if (md === null) md = "# Memory Index\n";
-	const oneLineHook = hook.replace(/\s*\n\s*/g, " ").trim();
+	const oneLineHook = hook.replace(/\s+/g, " ").trim();
 	const newLine = `- [${title}](${file}) — ${oneLineHook}`;
 	const lines = md.split("\n");
 	let replaced = false;
