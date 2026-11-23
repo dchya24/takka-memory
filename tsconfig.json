@@ -9,7 +9,10 @@
 		"outDir": "dist",
 		"rootDir": "src",
 		"declaration": false,
-		"sourceMap": false
+		"sourceMap": false,
+		"paths": {
+			"@earendil-works/pi-ai": ["./src/adapters/pi-ai-shim.ts"]
+		}
 	},
 	"include": ["src"]
 }
