@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { importZcode } from "./core/import-zcode.js";
-import { memoryRoot, scopeDir } from "./core/paths.js";
-import { listMemories, readMemory, searchMemories, type Scope } from "./core/store.js";
+import { memoryRoot, scopeDir, type Scope } from "./core/paths.js";
+import { listMemories, readMemory, searchMemories } from "./core/store.js";
 import { formatList, formatRead, formatSearch } from "./adapters/format.js";
 
 const USAGE = `takka-memory — agent-agnostic persistent memory
