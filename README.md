@@ -34,7 +34,7 @@ Each memory is one markdown file with frontmatter; each scope has a `MEMORY.md` 
 ### pi (native extension — prompt injection + tools)
 
 ```bash
-pi install git:github.com/dchya24/pi-zcode-memory   # repo will be renamed to takka-memory
+pi install git:github.com/dchya24/takka-memory
 # or from npm:
 pi install npm:takka-memory
 ```

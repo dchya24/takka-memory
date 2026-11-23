@@ -16,7 +16,10 @@
 	"author": "dchya24",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/dchya24/pi-zcode-memory.git"
+		"url": "git+https://github.com/dchya24/takka-memory.git"
+	},
+	"bugs": {
+		"url": "https://github.com/dchya24/takka-memory/issues"
 	},
 	"bin": {
 		"takka-memory": "bin/takka-memory.js"
