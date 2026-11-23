@@ -1,65 +1,79 @@
-# @dchya24/pi-zcode-memory
+# takka-memory
 
-A [pi](https://pi.dev) extension that shares **zcode's** file-based persistent memory between the two coding agents.
+**Agent-agnostic persistent memory** — a global + per-project markdown memory store that works across coding-agent harnesses: a [pi](https://pi.dev) extension, an MCP server for Claude Code / Cursor / any MCP-capable agent, and a small CLI. No server, no database: memories are plain markdown files.
 
-When pi and zcode are launched in the same project, this extension wires pi to the exact memory store zcode reads and writes — so a preference zcode learned last week is recalled by pi today, and anything pi saves is loaded by zcode on its next session. No server, no database: memories are plain markdown files.
+Formerly `pi-zcode-memory` (a bridge into zcode's memory store). takka-memory owns its store; existing zcode memories can be imported once with `takka-memory import-zcode`.
 
 ## How it works
 
-zcode keeps per-project memories as markdown under:
+One store, two scopes:
 
 ```
-~/.zcode/cli/memories/projects/<project-key>/memory/
-├── MEMORY.md      # index — one line per memory: `- [Title](file.md) — hook`
-└── <slug>.md      # one fact per file, with frontmatter
+~/.takka/memory/                    # GLOBAL — recalled in every project
+├── MEMORY.md                       # global index: `- [Title](file.md) — hook`
+├── prefer-ssh-remotes.md
+└── projects/<project-key>/         # PROJECT — this workspace only
+    ├── MEMORY.md                   # project index
+    └── ci-test-gotcha.md
 ```
 
-The project key is `<basename(cwd)>-<first 16 hex chars of sha256(cwd)>`, e.g. `~/.pi` → `.pi-38f13a76d1eebaea`. Because both agents derive the same key from the same workspace root, they read and write the **same store**.
+`project-key = <basename(cwd)>-<first 16 hex of sha256(cwd)>` — the same scheme zcode uses, so imported memories land 1:1.
 
-The extension:
+Each memory is one markdown file with frontmatter; each scope has a `MEMORY.md` index that agents read at session start.
 
-- **Injects the memory index into pi's system prompt** every turn (via `before_agent_start`) when the project has a zcode memory dir, so pi knows what's already remembered.
-- **Registers five tools** so the agent can manage memories on demand:
+### Scope rules
 
-| Tool | Purpose |
+| Operation | Behavior |
 |---|---|
-| `zcode_memory_list` | List all shared memories with type and description |
-| `zcode_memory_read` | Read one full memory file by name |
-| `zcode_memory_search` | Case-insensitive text search across all memories |
-| `zcode_memory_write` | Create or update one memory (auto-maintains the index) |
-| `zcode_memory_delete` | Delete a memory and remove its index line |
-
-## Requirements
-
-- [pi](https://pi.dev)
-- zcode with its CLI memory store at `~/.zcode/cli/memories/projects` — install this extension only if you run **both** agents in the same projects; otherwise there is nothing to share with.
+| `memory_write` | `scope` defaults to **`project`**; pass `"global"` explicitly for cross-project facts |
+| `memory_read` / `memory_delete` | without `scope`: **project wins**, then global fallback |
+| `memory_list` / `memory_search` | both scopes merged, entries labeled `[global]` / `[project]` |
 
 ## Install
 
-From git:
+### pi (native extension — prompt injection + tools)
 
 ```bash
-pi install git:github.com/dchya24/pi-zcode-memory
+pi install git:github.com/dchya24/pi-zcode-memory   # repo will be renamed to takka-memory
+# or from npm:
+pi install npm:takka-memory
 ```
 
-From npm (planned):
+pi injects both memory indexes into the system prompt every turn and registers five tools:
+
+`memory_list` · `memory_read` · `memory_search` · `memory_write` · `memory_delete`
+
+> Upgrading from pi-zcode-memory? The old `zcode_memory_*` tools keep working as deprecated aliases. Run `npx takka-memory import-zcode` once to copy your zcode memories into the new store.
+
+### Claude Code / Cursor / any MCP-capable harness
 
 ```bash
-pi install npm:@dchya24/pi-zcode-memory
+claude mcp add takka-memory -- npx takka-memory mcp
 ```
 
-From a local checkout:
+The MCP server exposes the same five tools. Because MCP can't inject context, also add the snippet from [`integrations/claude-code/CLAUDE-snippet.md`](integrations/claude-code/CLAUDE-snippet.md) to your `CLAUDE.md` (or install the optional skill in the same folder) so the agent loads the index at session start.
+
+### CLI
 
 ```bash
-pi install ./pi-zcode-memory
+npx takka-memory <command>
+  mcp                                  Start the MCP stdio server
+  list [global|project]                List memories (both scopes if omitted)
+  read <name>                          Read one memory (project wins over global)
+  search <query...>                    Case-insensitive text search
+  path                                 Print store root and current project dir
+  import-zcode [--dry-run] [--zcode-root <dir>]
+                                       Copy zcode memories (~/.zcode/cli/memories/projects) into this store
 ```
 
-## Configuration
+## Migration from zcode / pi-zcode-memory
 
-| Environment variable | Effect |
-|---|---|
-| `ZCODE_MEMORY_DISABLE=1` | Turn the extension completely off |
-| `ZCODE_MEMORIES_ROOT` | Override the memories root (defaults to `~/.zcode/cli/memories/projects`) |
+```bash
+npx takka-memory import-zcode --dry-run   # preview
+npx takka-memory import-zcode             # copy (non-destructive; identical files are skipped)
+```
+
+Memories land under the same project keys, so nothing changes semantically. The live zcode bridge is gone by design — takka-memory's store is its own, readable by any agent with file access.
 
 ## Memory file format
 
@@ -85,11 +99,26 @@ Memory types:
 - `project` — ongoing goals/constraints (include **Why:** / **How to apply:**)
 - `reference` — URLs, dashboards, tickets
 
-Link related memories in the body with `[[name]]`.
+Link related memories with `[[name]]`. Use absolute dates.
+
+## Configuration
+
+| Environment variable | Effect |
+|---|---|
+| `TAKKA_MEMORY_ROOT` | Override the store root (defaults to `~/.takka/memory`) |
+| `TAKKA_MEMORY_DISABLE=1` | Disable the pi extension (injection + tools) |
 
 ## Coexistence
 
-This extension does **not** touch pi's built-in memory: `~/.pi/agent/memory` stays pi-private. The zcode store is shared territory; pi's own store is not.
+pi's built-in private memory (`~/.pi/agent/memory`) is untouched — takka-memory is a separate, shareable store. Any other agent can read the markdown files directly; adapters just make it first-class.
+
+## Development
+
+```bash
+npm install
+npm test        # vitest — 36 tests across core, adapters, MCP, CLI
+npm run build   # tsc → dist/
+```
 
 ## License
 
