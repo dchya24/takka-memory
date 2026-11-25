@@ -10,8 +10,10 @@ const scopeSchema = z.enum(["global", "project"]).optional();
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const errText = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true as const });
 
-export function createMcpServer(cwd: string = process.cwd()): McpServer {
+export function createMcpServer(cwd: string | (() => string) = process.cwd()): McpServer {
 	const server = new McpServer({ name: "takka-memory", version: VERSION });
+	// Resolve the working directory per request so a restarted/changed client cwd stays correct.
+	const dir = () => (typeof cwd === "function" ? cwd() : cwd);
 
 	server.registerTool(
 		"memory_list",
@@ -19,7 +21,7 @@ export function createMcpServer(cwd: string = process.cwd()): McpServer {
 			description: "List persistent memories (both scopes, labeled [global]/[project]).",
 			inputSchema: { scope: scopeSchema },
 		},
-		async ({ scope }) => text(formatList(listMemories(cwd, scope))),
+		async ({ scope }) => text(formatList(listMemories(dir(), scope))),
 	);
 
 	server.registerTool(
@@ -32,7 +34,7 @@ export function createMcpServer(cwd: string = process.cwd()): McpServer {
 			},
 		},
 		async ({ name, scope }) => {
-			const r = readMemory(cwd, name, scope);
+			const r = readMemory(dir(), name, scope);
 			return r ? text(formatRead(r)) : errText(`No memory named '${name}'. Use memory_list first.`);
 		},
 	);
@@ -41,9 +43,13 @@ export function createMcpServer(cwd: string = process.cwd()): McpServer {
 		"memory_search",
 		{
 			description: "Case-insensitive text search across memory files (both scopes).",
-			inputSchema: { query: z.string().describe("Text to search for"), scope: scopeSchema },
+			inputSchema: {
+				query: z.string().describe("Text to search for"),
+				scope: scopeSchema,
+				limit: z.number().int().min(1).max(200).optional().describe("Max hits (default 40)"),
+			},
 		},
-		async ({ query, scope }) => text(formatSearch(searchMemories(cwd, query, scope), query)),
+		async ({ query, scope, limit }) => text(formatSearch(searchMemories(dir(), query, scope, { limit }), query)),
 	);
 
 	server.registerTool(
@@ -63,7 +69,7 @@ export function createMcpServer(cwd: string = process.cwd()): McpServer {
 			},
 		},
 		async ({ name, description, type, body, scope, title }) => {
-			const r = writeMemory(cwd, { name, description, type, body, scope, title });
+			const r = writeMemory(dir(), { name, description, type, body, scope, title });
 			return text(`Saved memory '${r.name}' (${type}, ${r.scope} scope) — index updated.`);
 		},
 	);
@@ -75,7 +81,7 @@ export function createMcpServer(cwd: string = process.cwd()): McpServer {
 			inputSchema: { name: z.string().describe("Memory name to delete"), scope: scopeSchema },
 		},
 		async ({ name, scope }) => {
-			const r = deleteMemory(cwd, name, scope);
+			const r = deleteMemory(dir(), name, scope);
 			return r
 				? text(`Deleted '${r.file}' (${r.scope} scope) and removed its index line.`)
 				: errText(`No memory named '${name}'.`);
@@ -85,7 +91,7 @@ export function createMcpServer(cwd: string = process.cwd()): McpServer {
 	return server;
 }
 
-export async function runMcpServer(cwd: string = process.cwd()): Promise<void> {
+export async function runMcpServer(cwd: string | (() => string) = () => process.cwd()): Promise<void> {
 	const server = createMcpServer(cwd);
 	await server.connect(new StdioServerTransport());
 }

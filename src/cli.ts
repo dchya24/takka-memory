@@ -1,3 +1,4 @@
+import * as os from "node:os";
 import * as path from "node:path";
 import { importZcode } from "./core/import-zcode.js";
 import { memoryRoot, scopeDir, type Scope } from "./core/paths.js";
@@ -10,7 +11,7 @@ Usage: takka-memory <command>
   mcp                                  Start the MCP stdio server
   list [global|project]                List memories (both scopes if omitted)
   read <name>                          Read one memory (project wins over global)
-  search <query...>                    Case-insensitive text search
+  search [--limit N] <query...>        Case-insensitive text search (max N hits, 1-200)
   path                                 Print store root and current project dir
   import-zcode [--dry-run] [--zcode-root <dir>]
                                        Copy zcode memories (~/.zcode/cli/memories/projects) into this store`;
@@ -46,9 +47,18 @@ export async function main(argv: string[]): Promise<number> {
 				return 0;
 			}
 			case "search": {
-				const query = rest.join(" ").trim();
-				if (!query) throw new Error("usage: takka-memory search <query...>");
-				console.log(formatSearch(searchMemories(cwd, query), query));
+				const args = [...rest];
+				let limit: number | undefined;
+				const li = args.indexOf("--limit");
+				if (li >= 0) {
+					limit = Number.parseInt(args[li + 1], 10);
+					if (!Number.isInteger(limit) || (limit as number) < 1 || (limit as number) > 200)
+						throw new Error("invalid --limit (use 1-200)");
+					args.splice(li, 2);
+				}
+				const query = args.join(" ").trim();
+				if (!query) throw new Error("usage: takka-memory search [--limit N] <query...>");
+				console.log(formatSearch(searchMemories(cwd, query, undefined, { limit }), query));
 				return 0;
 			}
 			case "path": {
@@ -60,9 +70,9 @@ export async function main(argv: string[]): Promise<number> {
 				const dryRun = rest.includes("--dry-run");
 				const zrFlag = rest.indexOf("--zcode-root");
 				const zcodeRoot =
-					zrFlag >= 0
+					zrFlag >= 0 && zrFlag + 1 < rest.length
 						? rest[zrFlag + 1]
-						: path.join(process.env.HOME ?? "", ".zcode", "cli", "memories", "projects");
+						: path.join(os.homedir(), ".zcode", "cli", "memories", "projects");
 				const s = importZcode(zcodeRoot, memoryRoot(), dryRun);
 				for (const p of s.projects) {
 					console.log(`${p.key}: copied ${p.copied}, skipped ${p.skipped}, updated ${p.updated}${dryRun ? " (dry-run)" : ""}`);

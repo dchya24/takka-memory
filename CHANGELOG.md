@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0] - 2026-11-24
+
+### Breaking
+
+- Removed the deprecated `zcode_memory_*` tool aliases from the pi extension. Use `memory_list` / `memory_read` / `memory_search` / `memory_write` / `memory_delete`.
+
+### Added
+
+- **Concurrency safety**: writes to one scope are serialized with a per-directory lock (`.lock`), and memory files plus the `MEMORY.md` index are written atomically (temp file + rename). Concurrent agents can no longer interleave into a torn index. Stale locks from a crashed process are recovered automatically.
+- **Search limits**: `memory_search` (MCP) and `memory_search` (pi) accept an optional `limit` (1–200, default 40); the CLI accepts `search --limit N <query...>`. Searches also honour an abort signal so a cancelled run stops scanning early.
+- **Per-request working directory**: the pi adapter and the MCP server resolve the working directory on every call (pi uses the session cwd from the tool context) instead of capturing it once at load time, so a workspace switch mid-session no longer reads a stale scope.
+
+### Fixed
+
+- **Frontmatter parsing** now handles CRLF files, quoted scalars (single/double, with escapes), trailing `#` comments, top-level `type:` as well as nested `metadata.type:`, and ignores unknown keys. Descriptions containing a colon or a `#` are quoted on write and survive a round-trip.
+- `import-zcode` uses `os.homedir()` instead of `$HOME`, so the default zcode path resolves correctly on Windows and in environments without `HOME`.
+
 ## [0.2.0] - 2026-11-23
 
 ### Breaking

@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { MemoryType } from "./frontmatter.js";
 import { buildMemoryFile, parseFrontmatter, slugify } from "./frontmatter.js";
-import { parseIndex, removeFromIndex, upsertIndexLine } from "./index-md.js";
-import { readFileSafe } from "./fsutil.js";
+import { parseIndex, removeFromIndexLocked, upsertIndexLineLocked } from "./index-md.js";
+import { atomicWriteFileSync, readFileSafe, withDirLockSync } from "./fsutil.js";
 import { scopeDir, type Scope } from "./paths.js";
 
 export interface MemoryInfo {
@@ -72,17 +72,24 @@ export function listMemories(cwd: string, scope?: Scope): MemoryInfo[] {
 	return infos;
 }
 
-export function searchMemories(cwd: string, query: string, scope?: Scope): SearchResult[] {
+export function searchMemories(
+	cwd: string,
+	query: string,
+	scope?: Scope,
+	opts?: { limit?: number; signal?: AbortSignal },
+): SearchResult[] {
 	const q = query.toLowerCase().trim();
 	const hits: SearchResult[] = [];
 	if (!q) return hits;
+	const limit = opts?.limit ?? SEARCH_CAP;
 	for (const { scope: s, dir } of scopesSelected(cwd, scope)) {
 		const files = fs.existsSync(dir) ? [INDEX_FILE, ...memoryFiles(dir)] : [];
 		for (const f of files) {
+			if (opts?.signal?.aborted) return hits;
 			const raw = readFileSafe(path.join(dir, f)) ?? "";
 			const lines = raw.split("\n");
 			for (let i = 0; i < lines.length; i++) {
-				if (hits.length >= SEARCH_CAP) return hits;
+				if (hits.length >= limit) return hits;
 				if (lines[i].toLowerCase().includes(q)) {
 					hits.push({ scope: s, file: f, line: i + 1, text: lines[i].trim() });
 				}
@@ -118,8 +125,11 @@ export function writeMemory(cwd: string, input: WriteInput): WriteResult {
 	fs.mkdirSync(dir, { recursive: true });
 	const slug = slugify(input.name);
 	const file = `${slug}.md`;
-	fs.writeFileSync(path.join(dir, file), buildMemoryFile(input), "utf-8");
-	upsertIndexLine(dir, file, input.title?.trim() || slug, input.description);
+	// Same lock as the index update, so concurrent writers can't interleave file+index.
+	withDirLockSync(dir, () => {
+		atomicWriteFileSync(path.join(dir, file), buildMemoryFile(input));
+		upsertIndexLineLocked(dir, file, input.title?.trim() || slug, input.description);
+	});
 	return { name: slug, scope, file };
 }
 
@@ -128,8 +138,11 @@ export function deleteMemory(cwd: string, name: string, scope?: Scope): DeleteRe
 		const p = resolveMemoryFile(dir, name);
 		if (p) {
 			const file = path.basename(p);
-			fs.rmSync(p);
-			removeFromIndex(dir, file);
+			// Locked so a concurrent write can't recreate the index line after we remove it.
+			withDirLockSync(dir, () => {
+				fs.rmSync(p);
+				removeFromIndexLocked(dir, file);
+			});
 			return { scope: s, file };
 		}
 	}

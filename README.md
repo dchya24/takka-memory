@@ -43,7 +43,7 @@ pi injects both memory indexes into the system prompt every turn and registers f
 
 `memory_list` · `memory_read` · `memory_search` · `memory_write` · `memory_delete`
 
-> Upgrading from pi-zcode-memory? The old `zcode_memory_*` tools keep working as deprecated aliases. Run `npx takka-memory import-zcode` once to copy your zcode memories into the new store.
+> Upgrading from pi-zcode-memory? The old `zcode_memory_*` tools were removed in v0.3.0 — use the `memory_*` names. Run `npx takka-memory import-zcode` once to copy your zcode memories into the new store.
 
 ### Claude Code / Cursor / any MCP-capable harness
 
@@ -60,7 +60,7 @@ npx takka-memory <command>
   mcp                                  Start the MCP stdio server
   list [global|project]                List memories (both scopes if omitted)
   read <name>                          Read one memory (project wins over global)
-  search <query...>                    Case-insensitive text search
+  search [--limit N] <query...>        Case-insensitive text search (max N hits, 1-200)
   path                                 Print store root and current project dir
   import-zcode [--dry-run] [--zcode-root <dir>]
                                        Copy zcode memories (~/.zcode/cli/memories/projects) into this store
@@ -108,6 +108,10 @@ Link related memories with `[[name]]`. Use absolute dates.
 | `TAKKA_MEMORY_ROOT` | Override the store root (defaults to `~/.takka/memory`) |
 | `TAKKA_MEMORY_DISABLE=1` | Disable the pi extension (injection + tools) |
 
+## Concurrency & durability
+
+Writes are serialized per scope with a directory lock (`.lock`), and every file — the memory itself and the `MEMORY.md` index — is written atomically (temp file + rename). Two agents writing the same scope at the same time can no longer interleave into a torn index.
+
 ## Coexistence
 
 pi's built-in private memory (`~/.pi/agent/memory`) is untouched — takka-memory is a separate, shareable store. Any other agent can read the markdown files directly; adapters just make it first-class.
@@ -116,7 +120,7 @@ pi's built-in private memory (`~/.pi/agent/memory`) is untouched — takka-memor
 
 ```bash
 npm install
-npm test        # vitest — 36 tests across core, adapters, MCP, CLI
+npm test        # vitest — 62 tests across core, adapters, MCP, CLI
 npm run build   # tsc → dist/
 ```
 

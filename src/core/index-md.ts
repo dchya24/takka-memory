@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { readFileSafe } from "./fsutil.js";
+import { atomicWriteFileSync, readFileSafe, withDirLockSync } from "./fsutil.js";
 
 export interface IndexEntry {
 	title: string;
@@ -24,7 +24,8 @@ function indexFile(dir: string): string {
 	return path.join(dir, "MEMORY.md");
 }
 
-export function upsertIndexLine(dir: string, file: string, title: string, hook: string): void {
+/** Index update assuming the caller already holds the dir lock (see withDirLockSync). */
+export function upsertIndexLineLocked(dir: string, file: string, title: string, hook: string): void {
 	const filePath = indexFile(dir);
 	let md = readFileSafe(filePath);
 	if (md === null) md = "# Memory Index\n";
@@ -42,18 +43,27 @@ export function upsertIndexLine(dir: string, file: string, title: string, hook: 
 	}
 	if (!replaced) {
 		if (!md.endsWith("\n")) md += "\n";
-		fs.writeFileSync(filePath, md + newLine + "\n", "utf-8");
+		atomicWriteFileSync(filePath, md + newLine + "\n");
 	} else {
-		fs.writeFileSync(filePath, lines.join("\n"), "utf-8");
+		atomicWriteFileSync(filePath, lines.join("\n"));
 	}
 }
 
-export function removeFromIndex(dir: string, file: string): void {
+export function upsertIndexLine(dir: string, file: string, title: string, hook: string): void {
+	withDirLockSync(dir, () => upsertIndexLineLocked(dir, file, title, hook));
+}
+
+/** Index removal assuming the caller already holds the dir lock. */
+export function removeFromIndexLocked(dir: string, file: string): void {
 	const md = readFileSafe(indexFile(dir));
 	if (md === null) return;
 	const lines = md.split("\n").filter((l) => {
 		const m = INDEX_LINE.exec(l);
 		return !(m && m[2].trim() === file);
 	});
-	fs.writeFileSync(indexFile(dir), lines.join("\n"), "utf-8");
+	atomicWriteFileSync(indexFile(dir), lines.join("\n"));
+}
+
+export function removeFromIndex(dir: string, file: string): void {
+	withDirLockSync(dir, () => removeFromIndexLocked(dir, file));
 }

@@ -1,6 +1,6 @@
 {
 	"name": "takka-memory",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Agent-agnostic persistent memory: global + per-project markdown store for pi, Claude Code (MCP), and any MCP-capable harness",
 	"type": "module",
 	"keywords": [

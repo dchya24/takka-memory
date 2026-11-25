@@ -30,6 +30,7 @@ Scope rules:
 - `memory_write` `scope` defaults to `"project"` — pass `"global"` explicitly only for facts that apply across all projects.
 - `memory_read`/`memory_delete` resolve project first, then global.
 - `memory_list`/`memory_search` merge both scopes with `[global]`/`[project]` labels.
+- `memory_search` accepts an optional `limit` (1–200, default 40) to cap the number of hits.
 
 ## File format
 

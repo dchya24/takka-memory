@@ -74,3 +74,44 @@ it("readIndexMd returns null for missing/empty scope, trimmed md otherwise", () 
 	writeMemory(CWD, { name: "g", description: "d", type: "user", body: "b", scope: "global" });
 	expect(readIndexMd("global", CWD)).toContain("[g](g.md)");
 });
+
+it("search honours a custom limit", () => {
+	for (let i = 0; i < 10; i++) {
+		writeMemory(CWD, { name: `hit-${i}`, description: "needle", type: "user", body: "needle" });
+	}
+	expect(searchMemories(CWD, "needle").length).toBeGreaterThan(10);
+	expect(searchMemories(CWD, "needle", undefined, { limit: 3 })).toHaveLength(3);
+	expect(searchMemories(CWD, "needle", undefined, { limit: 1 })).toHaveLength(1);
+});
+
+it("search stops early when the abort signal fires", () => {
+	writeMemory(CWD, { name: "a", description: "needle", type: "user", body: "needle" });
+	const ac = new AbortController();
+	ac.abort();
+	expect(searchMemories(CWD, "needle", undefined, { signal: ac.signal })).toHaveLength(0);
+});
+
+it("keeps the index consistent under concurrent writes", async () => {
+	// Fire many writes in parallel; the dir lock must keep every index line.
+	await Promise.all(
+		Array.from({ length: 20 }, (_, i) =>
+			Promise.resolve().then(() =>
+				writeMemory(CWD, { name: `concurrent-${i}`, description: `d${i}`, type: "user", body: "b" }),
+			),
+		),
+	);
+	const key = fs.readdirSync(path.join(root, "projects"))[0];
+	const memDir = path.join(root, "projects", key);
+	const index = fs.readFileSync(path.join(memDir, "MEMORY.md"), "utf-8");
+	const lines = index.split("\n").filter((l) => l.includes("](concurrent-"));
+	expect(lines).toHaveLength(20);
+	// No temp files leaked from atomic writes.
+	expect(fs.readdirSync(memDir).filter((f) => f.endsWith(".tmp"))).toHaveLength(0);
+});
+
+it("does not leave a lock directory behind after writes", () => {
+	writeMemory(CWD, { name: "x", description: "d", type: "user", body: "b" });
+	const key = fs.readdirSync(path.join(root, "projects"))[0];
+	const memDir = path.join(root, "projects", key);
+	expect(fs.existsSync(path.join(memDir, ".lock"))).toBe(false);
+});

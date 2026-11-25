@@ -41,6 +41,17 @@ it("search prints hits, path prints root", async () => {
 	expect(log.join("\n")).toContain(root);
 });
 
+it("search honours --limit and rejects invalid values", async () => {
+	for (let i = 0; i < 5; i++) {
+		writeMemory(CWD, { name: `n-${i}`, description: "needle", type: "user", body: "needle" });
+	}
+	await main(["search", "--limit", "2", "needle"]);
+	expect(log.join("\n").split("\n").filter((l) => l.includes("needle")).length).toBeLessThanOrEqual(2);
+	log = [];
+	expect(await main(["search", "--limit", "0", "needle"])).toBe(1);
+	expect(await main(["search", "--limit", "abc", "needle"])).toBe(1);
+});
+
 it("import-zcode copies a fixture store; --dry-run does not", async () => {
 	fs.mkdirSync(path.join(root, "zc", "proj-1", "memory"), { recursive: true });
 	fs.writeFileSync(path.join(root, "zc", "proj-1", "memory", "a.md"), "x", "utf-8");

@@ -60,4 +60,33 @@ describe("handlers", () => {
 		const res = await h.search({ query: "needle" });
 		expect(text(res)).toContain("[project]");
 	});
+	it("search honours a limit", async () => {
+		const h = makeHandlers(CWD);
+		for (let i = 0; i < 5; i++) {
+			await h.write({ name: `l-${i}`, description: "needle", type: "user", body: "needle" });
+		}
+		const res = await h.search({ query: "needle", limit: 2 });
+		expect(text(res).split("\n").filter(Boolean)).toHaveLength(2);
+	});
+});
+
+describe("dynamic cwd resolution", () => {
+	it("resolves the cwd per call, so a workspace switch takes effect", async () => {
+		const other = fs.mkdtempSync(path.join(os.tmpdir(), "other-"));
+		let current = CWD;
+		const h = makeHandlers(() => current);
+
+		await h.write({ name: "first", description: "d", type: "user", body: "b" });
+		expect(await h.list({})).toBeTruthy();
+		expect(text(await h.list({}))).toContain("first");
+
+		// Switch workspace → the new scope is empty, the old one is not.
+		current = other;
+		expect(text(await h.list({}))).not.toContain("first");
+
+		// ...and writes now land in the new project scope.
+		await h.write({ name: "second", description: "d", type: "user", body: "b" });
+		expect(text(await h.list({}))).toContain("second");
+		expect(text(await h.list({}))).not.toContain("first");
+	});
 });
